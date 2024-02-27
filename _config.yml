@@ -10,7 +10,7 @@
 locale                   : "en-US"
 title                    : "Yifei Feng / Student"
 title_separator          : "-"
-name                     : &name ""Yifei Feng"
+name                     : &name "Yifei Feng"
 description              : &description "personal description"
 url                      : https://scatyf3.github.io # the base hostname & protocol for your site e.g. "https://mmistakes.github.io"
 baseurl                  : "" # the subpath of your site, e.g. "/blog"
