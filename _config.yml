@@ -27,7 +27,6 @@ author:
   bio              : "System/HPC/PL beginner"
   location         : "China/Beijing"
   employer         : "Beijing Normal University"
-  uri              : https://ai.bnu.edu.cn/
   email            : "202111030012@mail.bnu.edu.cn" 
 
   # Academic websites
@@ -47,7 +46,7 @@ author:
   stackoverflow    : # User number or user number and name (i.e., use "1" or "1/jeff-atwood")    
 
   # Social media
-  bluesky          : "bsky.app" # Replace this with you Bluesky username
+  bluesky          : #"bsky.app" # Replace this with you Bluesky username
   facebook         : # Username
   flickr           : # Username
   foursquare       : # Username
@@ -56,12 +55,12 @@ author:
   keybase          : # Username
   instagram        : # Username
   lastfm           : # Username
-  linkedin         : "YIFEI FENG"
+  linkedin         : "yifei-feng-a0399627b"
   mastodon         : # URL
   medium           : # URL
   pinterest        : # Username
   soundcloud       : # Username
-  steam            : "dijkStra"
+  steam            : #"dijkStra"
   telegram         : # URL
   tumblr           : # Username
   twitter          : "UniofOxford"  # Replace this with your X / Twitter handle
