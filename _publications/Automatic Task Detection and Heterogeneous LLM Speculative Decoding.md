@@ -3,7 +3,7 @@ title: "Automatic Task Detection and Heterogeneous LLM Speculative Decoding"
 collection: preprint
 permalink: /publication/taskspec
 excerpt: 'This paper is about Speculative decoding for Large Language Model'
-date: 2025-05013
+date: 2025-05-13
 venue: 'Arxiv'
 paperurl: 'https://arxiv.org/abs/2505.08600'
 ---
