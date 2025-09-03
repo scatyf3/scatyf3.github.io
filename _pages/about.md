@@ -9,19 +9,20 @@ redirect_from:
 
 ## Education
 
-- Bachelor of Science in Computer Science@Beijing Normal University 2021~2025
-- Master of Science in Computer Engineering@New York Univerisity 2025~2027
+- Bachelor of Science in Computer Science@Beijing Normal University 2021 - 2025
+- Master of Science in Computer Engineering@New York Univerisity 2025 - 2027
 
-## Research & Interest
+👀 Seeking an PhD position in 2027
 
-I'm interested in full-stack optimization for AI applications, encompassing HPC/MLSys/AI algorithm knowledge. My goal is to advance software-hardware co-design to make AI more accessible.
+## Interest
 
-I have research experience in:
-- Speculative Decoding
-- Efficient GNNs
+To make AI application more accessible, I'm interested in full-stack optimization for AI applications, encompassing HPC/MLSys/AI algorithm knowledge.
 
+I have experience in
+- Efficient GNN
+- Speculative decode for LLM
+- Deep Learning Framework development
 
-## Experience
-- Research Intern @ Beijing Normal Univerisy 2023.2~2024.5
-- Research Intern @ Stevens Institute of Technology 2024.9~now
-- [InfiniTensor Training Camp @ Tsing Hua Unversity](https://opencamp.cn/InfiniTensor/student/camp/2024summer/excellent) 2024.7~2024.9
+I'm
+- 🔊 Seeking academic collaborators
+- 🌈 Open to providing consultations for students or junior researchers with questions about my research or career path.

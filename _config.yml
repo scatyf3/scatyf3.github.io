@@ -25,12 +25,12 @@ author:
   name             : "Yifei Feng"
   pronouns         : "she/they"  
   bio              : "LLM/MLSYS/HPC beginner"
-  location         : "China/Beijing"
+  location         : "US/New York"
   employer         : "New York University"
   email            : "scatyf3@gmail.com" 
 
   # Academic websites
-  #arxiv            : # URL - Update with the correct link to your profile
+  # arxiv            : # URL - Update with the correct link to your profile
   #googlescholar    : "https://scholar.google.com/citations?user=PS_CX0AAAAAJ"
   #impactstory      : # URL
   #orcid            : "http://orcid.org/yourorcidurl"
@@ -55,7 +55,7 @@ author:
   keybase          : # Username
   instagram        : # Username
   lastfm           : # Username
-  linkedin         : # TODO
+  linkedin         : https://www.linkedin.com/in/yifei-feng-a0399627b/
   mastodon         : # URL
   medium           : # URL
   pinterest        : # Username
@@ -69,7 +69,7 @@ author:
   wikipedia        : # Username
   xing             : # Username
   youtube          : # Username
-  zhihu            : # URL
+  zhihu            : https://www.zhihu.com/people/ratproject
 
 
 # Site Settings
@@ -216,7 +216,7 @@ defaults:
   # _posts
   - scope:
       path: ""
-      type: posts
+      type: project
     values:
       layout: single
       author_profile: true
@@ -232,14 +232,14 @@ defaults:
       layout: single
       author_profile: true
   # _teaching
-  - scope:
-      path: ""
-      type: teaching
-    values:
-      layout: single
-      author_profile: true
-      share: true
-      comments: true
+  #- scope:
+  #    path: ""
+  #    type: teaching
+  #  values:
+  #    layout: single
+  #    author_profile: true
+  #    share: true
+  #    comments: true
   # _publications
   - scope:
       path: ""
@@ -259,13 +259,13 @@ defaults:
       share: true
       comment: true
   # _talks
-  - scope:
-      path: ""
-      type: talks
-    values:
-      layout: talk
-      author_profile: true
-      share: true
+  #- scope:
+  #    path: ""
+  #    type: talks
+  #  values:
+  #    layout: talk
+  #    author_profile: true
+  #    share: true
 
 
 # Sass/SCSS
