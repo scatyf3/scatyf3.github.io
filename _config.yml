@@ -8,10 +8,10 @@
 
 # Basic Site Settings
 locale                   : "en-US"
-title                    : "Student"
+title                    : "Yifei Feng"
 title_separator          : "-"
 name                     : &name "Yifei Feng"
-description              : &description "personal description"
+description              : &description "Yifei Feng - M.S. student at NYU working on efficient LLM inference and speculative decoding"
 url                      : https://scatyf3.github.io # the base hostname & protocol for your site e.g. "https://mmistakes.github.io"
 baseurl                  : "" # the subpath of your site, e.g. "/blog"
 repository               : "scatyf3/scatyf3.github.io"
@@ -24,7 +24,7 @@ author:
   avatar           : "profile.png"
   name             : "Yifei Feng"
   pronouns         : "she/they"  
-  bio              : "LLM/MLSYS/HPC beginner"
+  bio              : "Efficient LLM Inference · MLSys"
   location         : "US/New York"
   employer         : "New York University"
   email            : "scatyf3@gmail.com" 
@@ -55,7 +55,7 @@ author:
   keybase          : # Username
   instagram        : # Username
   lastfm           : # Username
-  linkedin         : https://www.linkedin.com/in/yifei-feng-a0399627b/
+  linkedin         : "yifei-feng-a0399627b"
   mastodon         : # URL
   medium           : # URL
   pinterest        : # Username
