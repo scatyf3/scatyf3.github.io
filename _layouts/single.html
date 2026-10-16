@@ -37,7 +37,14 @@ layout: default
         {% if page.collection == 'teaching' %}
           <p> {{ page.type }}, <i>{{ page.venue }}</i>, {{ page.date | default: "1900-01-01" | date: "%Y" }} </p>
         {% elsif page.venue and page.date %}
-          <p>Published in <i>{{ page.venue }}</i>, {{ page.date | default: "1900-01-01" | date: "%Y" }} </p>
+          <p class="pub-meta"><i>{{ page.venue }}</i> · {{ page.date | default: "1900-01-01" | date: "%Y" }}</p>
+          {% if page.paperurl or page.pdfurl or page.codeurl %}
+          <p class="pub-links">
+            {% if page.paperurl %}<a href="{{ page.paperurl }}">{% if page.paperurl contains "arxiv.org" %}arXiv{% else %}Paper{% endif %}</a>{% endif %}
+            {% if page.pdfurl %}<a href="{{ page.pdfurl }}">PDF</a>{% endif %}
+            {% if page.codeurl %}<a href="{{ page.codeurl }}">Code</a>{% endif %}
+          </p>
+          {% endif %}
         {% elsif page.date %}
           <p class="page__date"><strong><i class="fa fa-fw fa-calendar" aria-hidden="true"></i> {{ site.data.ui-text[site.locale].date_label | default: "Published:" }}</strong> <time datetime="{{ page.date | date_to_xmlschema }}">{{ page.date | default: "1900-01-01" | date: "%B %d, %Y" }}</time></p>
         {% endif %}    

@@ -46,17 +46,6 @@ Hi! I'm Yifei Feng, an M.S. student in Computer Engineering at New York Universi
 
 **Serving engines.** An optimization only matters if people can actually run it. I understand the constraints of state-of-the-art serving engines and designing my optimizations around them. My goal is to make my optimizations can be merged upstream or maintained as a usable fork.
 
-## Publications
-
-- **Acceptance-Aware Draft Model Training for Speculative Decoding**. *arXiv 2026* [[arXiv]](https://arxiv.org/abs/2609.24150)
-- **GSR-GNN**: Training Acceleration and Memory-Saving Framework of Deep GNNs on Circuit Graph. *DAC 2026* [[arXiv]](https://arxiv.org/abs/2603.27156)
-- **Automatic Task Detection and Heterogeneous LLM Speculative Decoding**. *arXiv 2025* [[arXiv]](https://arxiv.org/abs/2505.08600)
-
-## Open Source
-
-- **[PegaInfer](https://github.com/pegainfer-project/pegainfer)**: scheduling, profiling, speculative decoding, testing & observability. [10 PRs merged](https://github.com/pegainfer-project/pegainfer/pulls?q=is:pr+author:scatyf3+is:merged)
-- **[FlagGems](https://github.com/flagos-ai/FlagGems)**: C++ runtime. [4 PRs merged](https://github.com/flagos-ai/FlagGems/pulls?q=is:pr+author:scatyf3+is:merged)
-
 ## Get in Touch
 
 I'm always happy to collaborate on research, and glad to chat with students or junior researchers about my work or career path. Email me at [scatyf3@gmail.com](mailto:scatyf3@gmail.com).
