@@ -31,7 +31,7 @@ layout: default
             <p class="page__meta"><i class="fa fa-clock-o" aria-hidden="true"></i> {% include read-time.html %}</p>
           {% endif %}
         {% if page.modified %}
-          <p class="page__date"><strong><i class="fa fa-fw fa-calendar" aria-hidden="true"></i> {{ site.data.ui-text[site.locale].date_label | default: "Published:" }}</strong> <time datetime="{{ page.modified | date: "%Y-%m-%d" }}">{{ page.modified | date: "%B %d, %Y" }}</time></p>
+          <p class="page__date"><strong><i class="fa fa-fw fa-calendar" aria-hidden="true"></i> {% include bi.html en="Published:" zh="发布于" %}</strong> <time datetime="{{ page.modified | date: "%Y-%m-%d" }}"><span class="lang-en">{{ page.modified | date: "%B %d, %Y" }}</span><span class="lang-zh">{{ page.modified | date: "%Y 年 %-m 月 %-d 日" }}</span></time></p>
         {% endif %}
         
         {% if page.collection == 'teaching' %}
@@ -46,7 +46,7 @@ layout: default
           </p>
           {% endif %}
         {% elsif page.date %}
-          <p class="page__date"><strong><i class="fa fa-fw fa-calendar" aria-hidden="true"></i> {{ site.data.ui-text[site.locale].date_label | default: "Published:" }}</strong> <time datetime="{{ page.date | date_to_xmlschema }}">{{ page.date | default: "1900-01-01" | date: "%B %d, %Y" }}</time></p>
+          <p class="page__date"><strong><i class="fa fa-fw fa-calendar" aria-hidden="true"></i> {% include bi.html en="Published:" zh="发布于" %}</strong> <time datetime="{{ page.date | date_to_xmlschema }}"><span class="lang-en">{{ page.date | default: "1900-01-01" | date: "%B %d, %Y" }}</span><span class="lang-zh">{{ page.date | default: "1900-01-01" | date: "%Y 年 %-m 月 %-d 日" }}</span></time></p>
         {% endif %}    
         </header>
       {% endunless %}
@@ -84,7 +84,7 @@ layout: default
   {% if page.id and page.related and site.related_posts.size > 0 %}
     <div class="page__related">
       {% if site.data.ui-text[site.locale].related_label %}
-        <h4 class="page__related-title">{{ site.data.ui-text[site.locale].related_label | default: "You May Also Enjoy" }}</h4>
+        <h4 class="page__related-title">{% include bi.html en="You May Also Enjoy" zh="相关文章" %}</h4>
       {% endif %}
       <div class="grid__wrapper">
         {% for post in site.related_posts limit:4 %}

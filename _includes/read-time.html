@@ -1,17 +1,21 @@
+{% comment %}
+  Reading time in both languages. Bilingual posts put the 中文 block first and
+  the English block (<div class="lang-en">) second; each half is timed on its own.
+  English: words / site.words_per_minute. 中文: characters / 400 per minute.
+{% endcomment %}
 {% if post.read_time %}
-  {% assign words = post.content | strip_html | number_of_words %}
-{% elsif page.read_time %}
-  {% assign words = page.content | strip_html | number_of_words %}
-{% endif %}
-
-{% if site.words_per_minute %}
-  {% if words < 180 %}
-	  {{ site.data.ui-text[site.locale].less_than | default: "less than" }} 1 {{ site.data.ui-text[site.locale].minute_read | default: "minute read" }}
-	{% elsif words < 360 %}
-	  1 {{ site.data.ui-text[site.locale].minute_read | default: "minute read" }}
-	{% else %}
-	  {{ words | divided_by:site.words_per_minute }} {{ site.data.ui-text[site.locale].minute_read | default: "minute read" }}
-	{% endif %}
+  {% assign rt_content = post.content %}
 {% else %}
-  {{ site.data.ui-text[site.locale].undefined_wpm | "Undefined parameter words_per_minute at _config.yml" }}
+  {% assign rt_content = page.content %}
 {% endif %}
+{% if rt_content contains '<div class="lang-en">' %}
+  {% assign rt_parts = rt_content | split: '<div class="lang-en">' %}
+  {% assign rt_zh = rt_parts[0] | strip_html | strip_newlines | remove: " " %}
+  {% assign rt_en = rt_parts[1] | strip_html %}
+{% else %}
+  {% assign rt_zh = rt_content | strip_html | strip_newlines | remove: " " %}
+  {% assign rt_en = rt_content | strip_html %}
+{% endif %}
+{% assign rt_en_min = rt_en | number_of_words | divided_by: site.words_per_minute %}
+{% assign rt_zh_min = rt_zh | size | divided_by: 400 %}
+<span class="lang-en">{% if rt_en_min < 1 %}less than 1 minute read{% else %}{{ rt_en_min }} minute read{% endif %}</span><span class="lang-zh">{% if rt_zh_min < 1 %}不到 1 分钟{% else %}阅读约 {{ rt_zh_min }} 分钟{% endif %}</span>

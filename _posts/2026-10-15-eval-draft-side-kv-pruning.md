@@ -292,7 +292,7 @@ So far we have only built the Qwen3 pipeline. How should our method plug into ne
 
 #### SWA
 
-t
+
 
 Code: [lcrkv/kv_cache.py](https://github.com/scatyf3/lcrkv/blob/paper/lcrkv/kv_cache.py) (`RingScratchLayer`, `force_hybrid_ring_layers`)
 

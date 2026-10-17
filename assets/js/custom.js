@@ -56,6 +56,37 @@
     });
   }
 
+  /* ---------- Readable anchors for 中文 headings ---------- */
+
+  /* kramdown drops CJK characters from auto ids, leaving #section, #section-1, ...;
+     rebuild those from the heading text so shared section links are readable */
+  var usedIds = {};
+  Array.prototype.forEach.call(document.querySelectorAll('[id]'), function (el) { usedIds[el.id] = true; });
+  Array.prototype.forEach.call(
+    document.querySelectorAll('.page__content h2[id], .page__content h3[id], .page__content h4[id]'),
+    function (h) {
+      if (!/^section(-\d+)?$/.test(h.id)) return;
+      var base = h.textContent.trim().toLowerCase()
+        .replace(/[^\w\u3400-\u9fff\s-]/g, '')
+        .replace(/\s+/g, '-');
+      if (!base) return;
+      var id = base;
+      for (var n = 1; usedIds[id]; n++) id = base + '-' + n;
+      delete usedIds[h.id];
+      usedIds[id] = true;
+      h.id = id;
+    }
+  );
+  if (location.hash) {
+    var hashTarget = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+    /* a section link from the other language: show that language for this visit */
+    var hashLang = hashTarget && hashTarget.closest('.lang-en, .lang-zh');
+    if (hashLang && hashTarget.offsetParent === null) {
+      applyLang(hashLang.classList.contains('lang-zh') ? 'zh' : 'en');
+    }
+    if (hashTarget) hashTarget.scrollIntoView();
+  }
+
   /* ---------- Post table of contents (left sidebar) ---------- */
 
   var toc = document.querySelector('.post-toc');
