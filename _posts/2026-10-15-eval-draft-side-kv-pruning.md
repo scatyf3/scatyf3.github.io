@@ -1,11 +1,13 @@
 ---
 title: "如何评估 Draft-Side KV Cache Pruning"
+title_en: "How to Evaluate Draft-Side KV Cache Pruning"
 date: 2026-10-15
 tags:
   - speculative decoding
   - KV cache
 ---
 
+<div class="lang-zh" markdown="1">
 ### 动机与约束
 
 我们想通过KV Cache Pruning优化standalone draft在Long Decoding时的效率。Why Standalone Draft？我的理解是这个做法在生产部署中比较常见，虽然不如dflash和eagle那么流行，原因有二：
@@ -153,3 +155,153 @@ Code：[lcrkv/spec_decode/gdn_spec.py](https://github.com/scatyf3/lcrkv/blob/pap
 #### Tree Speculative Decoding
 
 Code：[indep_draft/tree_sd/](https://github.com/scatyf3/IndepDraftEval/tree/main/indep_draft/tree_sd)、[indep_draft/sd/tree.py](https://github.com/scatyf3/IndepDraftEval/blob/main/indep_draft/sd/tree.py)、[indep_draft/kernels/triton_varlen_tree.py](https://github.com/scatyf3/IndepDraftEval/blob/main/indep_draft/kernels/triton_varlen_tree.py)
+
+</div>
+
+<div class="lang-en" markdown="1">
+
+### Motivation and Constraints
+
+We want to use KV cache pruning to make a standalone draft model more efficient during long decoding. Why a standalone draft? My understanding is that this setup is fairly common in production deployments, even if it is less popular than DFlash and EAGLE, for two reasons:
+
+1. Systems that overlap draft and target execution (e.g., speculative speculative decoding) can hardly use the target's hidden states;
+2. The target's weights may have access restrictions, so draft training that depends on the target is hard to push through in practice.
+
+### Theoretical Analysis
+
+In long decoding with a standalone draft, we find that the draft-side KV cache memory traffic gradually becomes the bottleneck. Consider a single-request scenario. In each speculation round:
+
+1. Draft:
+	1. KV: $\gamma \times \text{ctx\_len} \times L_{d}\times H_{d} \times D_{d} \times 2 \times \text{sizeof(BF16)}$
+	2. Weights: $\gamma \times W_{draft}$
+2. Target:
+	1. KV: $1 \times  \text{ctx\_len} \times L_{t}\times H_{t} \times D_{t} \times 2 \times \text{sizeof(BF16)}$
+	2. Weights: $W_{target}$
+3. Qualitatively: the per-token KV size is $L \times H_{kv} \times D$. The target's $L_t, H_{t}, D_t$ are usually larger than the draft's, but the gap is far smaller than the gap in parameter count; meanwhile the draft decodes $\gamma$ steps per round, so the ratio of the two slopes is $\dfrac{\gamma \, L_d H_d D_d}{L_t H_t D_t}$, which is usually greater than 1.
+
+Take Qwen3-0.6B + 8B as an example: $H_{kv}=8$ and $D=128$ are the same, only the layer counts differ (28 vs 36). With $\gamma=7$, the slope ratio is $7 \times 28 / 36 \approx 5.4$. Using the constants from the model architecture, we can plot the memory traffic of target and draft as linear functions of context length. Beyond 10K tokens, the draft's memory traffic exceeds the target's, so there is a lot of room for optimization:
+
+![Memory traffic per speculation round for Qwen3-0.6B draft vs. Qwen3-8B target](/images/blog/draft-target-mem-traffic.svg)
+*Figure 1: HBM traffic per speculation round (single request, BF16). Beyond roughly 10K tokens of context, the bytes read by the draft's γ forward passes exceed those read by one target verify.*
+
+### Eval Pipeline Building
+
+In fact, the biggest difficulty in this work was building the eval pipeline, both from the speculative decoding side and from the KV cache pruning side.
+
+#### Speculative decoding
+
+When starting with standalone SD, the classic move is to run SD with SpecInfer's llama-68m + Llama-2-7B, which works very well in Hugging Face / PyTorch implementations. However, with the same implementation, switching to Qwen3-0.6B + 8B gave terrible results: SD ran at roughly the same speed as target AR. So the debugging began:
+
+1. **Is the algorithm implemented wrong?** Acceptance length is 3–4, so in theory there should be a speedup.
+2. **Is it a performance problem?** Profiling with the torch profiler showed the draft model's CPU timeline fully saturated while the GPU timeline sat idle. It was actually a CPU-side problem (kernel launch bound).
+
+![torch profiler timeline of a decode step, Qwen3-0.6B vs. 14B](/images/blog/draft-profiler-cpu-bound.png)
+*Figure 2: torch profiler trace of one decode step. The kernels in the GPU row at the bottom are all short with gaps between them, while the CPU side at the top is constantly launching ops.*
+
+#### KV cache pruning
+
+We hit the same problem in the KV cache pruning part: after implementing some pruning methods exactly following their code, there was no notable performance difference before and after pruning the draft KV cache.
+
+1. Again, the CPU launch bound mentioned above.
+2. KV cache pruning papers see speedups with the same implementation because their evaluation setup is:
+    1. Start from a very long context;
+    2. Large batching.
+
+    So attention dominates the decoding process and hides the CPU launch bound.
+
+#### CUDA Graph
+
+Once we understood this bound, the obvious optimization was to use CUDA Graph to cut kernel launch overhead. But at the time I wasn't familiar with how to use CUDA Graph properly: the vLLM / SGLang papers describe the core serving mechanisms such as paged / radix attention and continuous batching, and few papers discuss CUDA Graph, which is useful and fundamental but perhaps lacks novelty. So the implementation had some twists and turns.
+
+The basic idea of CUDA Graph is simple: record the sequence of kernels to launch and their inputs ahead of time, capture them as a graph, and replay that graph during actual inference. Of course, such capture requires the kernels' input memory buffers to stay fixed; otherwise a recapture is needed.
+
+#### v1: Preallocated KV + masked SDPA
+
+The initial v1 evaluation pipeline was the most naive implementation, adapted from the TriForce codebase. In short: after prefill, compress the KV to a fixed `prefill_budget`, then decode a fixed `max_new_token`. To be compatible with CUDA Graph, we preallocate a KV cache of size `prefill_budget + max_new_token` and use SDPA attention with a uniform input shape, masking out the invalid tail. Pseudocode:
+
+```python
+k_cache = torch.zeros(L, B, H_kv, S_MAX, D)              # one per layer
+v_cache = torch.zeros(L, B, H_kv, S_MAX, D)
+valid   = torch.zeros(B, 1, 1, S_MAX, dtype=torch.bool)   # bool mask, True = valid
+pos     = torch.zeros(B, dtype=torch.long)                # current write position, a tensor not an int
+
+o = F.scaled_dot_product_attention(
+    q, k_cache[l], v_cache[l],                            # always the full S_MAX length
+    attn_mask=valid,                                      # mask out positions not yet written
+    enable_gqa=True,
+)
+```
+
+#### Problems with v1
+
+This approach is fine for evaluating long prefilling, e.g. NIAH or document QA, where `max_new_token` is small and the masking waste is tiny. But for long decoding, say 1K prefill and 32K decode, we need to preallocate 33K and then mask out a very large invalid KV region, which clearly doesn't make sense.
+
+The first fix that came to mind was splitting into multiple graphs, recording kernels for 1K–2K, 2K–4K and 4K–8K separately to reduce the masking waste. But that is a bit clumsy and doesn't really eliminate the waste. After some research with my agent, I decided to change the kernel.
+
+#### v2: varlen kernel
+
+Rather than building a mask on the CPU side, change the kernel directly: the kernel reads the valid position itself and skips the computation beyond it. Using the simplest linear add as a demo: compared with a plain add kernel, we additionally pass `len_ptr`, defining `[0, len_ptr)` as valid data and everything after it as invalid:
+
+```python
+@triton.jit
+def add_kernel(a_ptr, b_ptr, out_ptr, len_ptr, BLOCK: tl.constexpr):
+    pid = tl.program_id(0)
+    start = pid * BLOCK
+    valid_len = tl.load(len_ptr)          # read the valid length from device memory: graph replay sees the latest value
+    if start >= valid_len:                # the whole block is in the invalid region: exit without reading a / b
+        return
+    offs = start + tl.arange(0, BLOCK)
+    m = offs < valid_len                  # the block that straddles the boundary: only process the valid part
+    a = tl.load(a_ptr + offs, mask=m)
+    b = tl.load(b_ptr + offs, mask=m)
+    tl.store(out_ptr + offs, a + b, mask=m)
+```
+
+For more kernel details, see [IndepDraftEval/indep_draft/kernels/triton_varlen_attn.py](https://github.com/scatyf3/IndepDraftEval/blob/main/indep_draft/kernels/triton_varlen_attn.py).
+
+#### When to prune
+
+With the kernel and SD infrastructure in place (draft – verify – draft state rollback), we had the baseline we wanted to optimize. The next question is where to prune. The FlashInfer / FlashAttention kernels used in production don't expose intermediate attention scores. Given this constraint, old-style per-step pruning based on attention scores is not an option, but the method can't be completely query-agnostic either, because we also need to evaluate some attention-score baselines.
+
+Under these constraints we found R-KV, the first paper to evaluate KV cache methods for long decoding, which proposes several ways to prune during long decoding. Its procedure is:
+
+0. Receive a short prompt
+1. Decode normally until the KV cache hits the upper limit
+2. Trigger one pruning pass that scores the KV and compresses it to the lower limit, then continue decoding
+
+Translated into our CUDA Graph runtime, the workflow is:
+
+0. Receive a short prompt
+1. Decode efficiently with a FlashAttention-style kernel until the KV cache hits the upper limit
+2. On hitting the limit, trigger a pruning event. Inside the event we can obtain all kinds of scores, including attention and other fancy algorithms; an eager, inefficient implementation is fine here because the event fires rarely
+3. Select KV pairs by score and reorganize the KV so the kept entries are physically contiguous again
+
+Compared with the full-KV SD baseline above, our runtime adds:
+
+1. A scoring interface that accommodates various scoring methods
+2. A select + compact step that picks the KV to keep by score and compacts it in place to the front of the cache. This could be a kernel, but profiling shows it takes a tiny share of latency, so it stays in native torch.
+
+Putting it all together, our eval pipeline looks like this:
+
+![Continuous KV cache pruning overview](/images/blog/continuous-kv-pruning.svg)
+*Figure 3: continuous KV cache pruning. When the KV cache grows to the upper limit U, one pruning pass fires: sink and recent tokens are kept, KV in the prunable middle region is selected by score, and the cache is compacted to the lower limit L before decoding continues.*
+
+### Extend
+
+So far we have only built the Qwen3 pipeline. How should our method plug into newer models and their new attention variants? How do we support tree speculative decoding?
+
+#### SWA
+
+t
+
+Code: [lcrkv/kv_cache.py](https://github.com/scatyf3/lcrkv/blob/paper/lcrkv/kv_cache.py) (`RingScratchLayer`, `force_hybrid_ring_layers`)
+
+#### Gated Delta Net
+
+Code: [lcrkv/spec_decode/gdn_spec.py](https://github.com/scatyf3/lcrkv/blob/paper/lcrkv/spec_decode/gdn_spec.py), [lcrkv/kernels/gdn_spec_kernel.py](https://github.com/scatyf3/lcrkv/blob/paper/lcrkv/kernels/gdn_spec_kernel.py)
+
+#### Tree Speculative Decoding
+
+Code: [indep_draft/tree_sd/](https://github.com/scatyf3/IndepDraftEval/tree/main/indep_draft/tree_sd), [indep_draft/sd/tree.py](https://github.com/scatyf3/IndepDraftEval/blob/main/indep_draft/sd/tree.py), [indep_draft/kernels/triton_varlen_tree.py](https://github.com/scatyf3/IndepDraftEval/blob/main/indep_draft/kernels/triton_varlen_tree.py)
+
+</div>

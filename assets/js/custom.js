@@ -38,6 +38,71 @@
     else if (mq.addListener) mq.addListener(onChange);
   }
 
+  /* ---------- Language toggle ---------- */
+
+  function applyLang(lang) {
+    root.setAttribute('data-lang', lang);
+    root.setAttribute('lang', lang === 'zh' ? 'zh-CN' : 'en');
+    /* nav labels change width; let the greedy nav re-measure */
+    window.dispatchEvent(new Event('resize'));
+  }
+
+  var langToggle = document.querySelector('.lang-toggle');
+  if (langToggle) {
+    langToggle.addEventListener('click', function () {
+      var next = root.getAttribute('data-lang') === 'zh' ? 'en' : 'zh';
+      applyLang(next);
+      try { localStorage.setItem('lang', next); } catch (e) { /* ignore */ }
+    });
+  }
+
+  /* ---------- Post table of contents (left sidebar) ---------- */
+
+  var toc = document.querySelector('.post-toc');
+  var tocHeadings = toc ? document.querySelectorAll('.page__content h2[id], .page__content h3[id], .page__content h4[id]') : [];
+
+  if (toc && tocHeadings.length) {
+    var tocList = toc.querySelector('.post-toc__list');
+    var tocLinks = [];
+    var topLevel = Math.min.apply(null, Array.prototype.map.call(tocHeadings, function (h) {
+      return +h.tagName.charAt(1);
+    }));
+
+    Array.prototype.forEach.call(tocHeadings, function (h) {
+      var li = document.createElement('li');
+      var a = document.createElement('a');
+      li.className = 'post-toc__item post-toc__item--l' + (+h.tagName.charAt(1) - topLevel);
+      /* headings inside a .lang-en / .lang-zh block only show in that language */
+      var langBlock = h.closest('.lang-en, .lang-zh');
+      if (langBlock) li.classList.add(langBlock.classList.contains('lang-zh') ? 'lang-zh' : 'lang-en');
+      a.href = '#' + h.id;
+      a.textContent = h.textContent;
+      li.appendChild(a);
+      tocList.appendChild(li);
+      tocLinks.push(a);
+    });
+    toc.hidden = false;
+
+    /* highlight the section currently being read */
+    var tocTicking = false;
+    var updateToc = function () {
+      var offset = 120;
+      var current = -1;
+      Array.prototype.forEach.call(tocHeadings, function (h, i) {
+        if (h.offsetParent !== null && h.getBoundingClientRect().top - offset <= 0) current = i;
+      });
+      tocLinks.forEach(function (a, i) { a.classList.toggle('is-active', i === current); });
+      tocTicking = false;
+    };
+    window.addEventListener('scroll', function () {
+      if (!tocTicking) {
+        tocTicking = true;
+        window.requestAnimationFrame(updateToc);
+      }
+    }, { passive: true });
+    updateToc();
+  }
+
   /* ---------- Scroll reveal ---------- */
 
   if (!reduceMotion && 'IntersectionObserver' in window) {

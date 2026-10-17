@@ -11,6 +11,9 @@
 {% else %}
   {% assign title = post.title %}
 {% endif %}
+{% if post.title_en %}
+  {% capture title %}<span class="lang-zh">{{ title }}</span><span class="lang-en">{{ post.title_en }}</span>{% endcapture %}
+{% endif %}
 
 <div class="{{ include.type | default: "list" }}__item">
   <article class="archive__item" itemscope itemtype="http://schema.org/CreativeWork">

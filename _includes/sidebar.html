@@ -1,6 +1,13 @@
 {% include base_path %}
 
-{% if page.author_profile or layout.author_profile or page.sidebar %}
+{% if page.toc_sidebar %}
+  <div class="sidebar sticky post-toc-sidebar">
+    <nav class="post-toc" aria-label="Table of contents" hidden>
+      <h4 class="post-toc__title"><span class="lang-en">Contents</span><span class="lang-zh">目录</span></h4>
+      <ul class="post-toc__list"></ul>
+    </nav>
+  </div>
+{% elsif page.author_profile or layout.author_profile or page.sidebar %}
   <div class="sidebar sticky">
   {% if page.author_profile or layout.author_profile %}{% include author-profile.html %}{% endif %}
   {% if page.sidebar %}

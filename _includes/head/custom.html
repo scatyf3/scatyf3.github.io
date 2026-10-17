@@ -40,8 +40,37 @@
   })();
 </script>
 
+<!-- Pick the language before first paint: ?lang= > saved choice > browser language -->
+<script>
+  (function () {
+    var lang = null;
+    var m = /[?&]lang=(en|zh)\b/.exec(location.search);
+    if (m) {
+      lang = m[1];
+      try { localStorage.setItem('lang', lang); } catch (e) { /* storage unavailable */ }
+    } else {
+      try { lang = localStorage.getItem('lang'); } catch (e) { /* storage unavailable */ }
+    }
+    if (lang !== 'en' && lang !== 'zh') {
+      lang = /^zh\b/i.test(navigator.language || '') ? 'zh' : 'en';
+    }
+    var root = document.documentElement;
+    root.setAttribute('data-lang', lang);
+    root.setAttribute('lang', lang === 'zh' ? 'zh-CN' : 'en');
+  })();
+</script>
+
 
 <!-- Support for MatJax -->
+<script>
+  window.MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ['\\(', '\\)']],
+      displayMath: [['$$', '$$'], ['\\[', '\\]']],
+      processEscapes: true
+    }
+  };
+</script>
 <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 
 <!-- end custom head snippets -->

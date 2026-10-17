@@ -1,13 +1,17 @@
 # main links links
 main:
   - title: "Publications"
+    title_zh: "论文"
     url: /publications/
 
   - title: "Open Source"
+    title_zh: "开源"
     url: /open-source/
 
   - title: "Teaching"
+    title_zh: "教学"
     url: /teaching/
 
   - title: "Blog Posts"
+    title_zh: "博客"
     url: /year-archive/

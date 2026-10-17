@@ -231,6 +231,54 @@ html[data-theme="dark"] .theme-toggle {
   }
 }
 
+/*
+   Language toggle: one URL, both languages; content is tagged .lang-en / .lang-zh
+   ========================================================================== */
+
+html[data-lang="en"] .lang-zh,
+html[data-lang="zh"] .lang-en {
+  display: none !important;
+}
+
+.lang-toggle {
+  flex: none;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  margin-left: 0.5rem;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text);
+  }
+
+  &__opt {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 6px;
+    border-radius: 14px;
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+}
+
+html[data-lang="en"] .lang-toggle__opt[data-lang-opt="en"],
+html[data-lang="zh"] .lang-toggle__opt[data-lang-opt="zh"] {
+  background: var(--text);
+  color: var(--bg);
+}
+
 /* keep the sticky sidebar below the sticky masthead */
 .sticky {
   @include breakpoint($large) {
@@ -393,5 +441,115 @@ html[data-theme="dark"] .theme-toggle {
 
   html {
     scroll-behavior: smooth;
+  }
+}
+
+/*
+   Related posts ("You May Also Enjoy")
+   ========================================================================== */
+
+.page__related .grid__wrapper {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+  margin: 0;
+  width: auto;
+
+  .grid__item {
+    float: none;
+    width: auto;
+    margin: 0;
+    padding: 0.9em 1.1em;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+
+  .archive__item-title {
+    margin-top: 0;
+    line-height: 1.35;
+  }
+}
+
+/*
+   Post table of contents (replaces the author profile on posts)
+   ========================================================================== */
+
+.post-toc-sidebar {
+  /* on narrow screens the sidebar stacks above the post; skip the TOC there */
+  display: none;
+
+  @include breakpoint($large) {
+    display: block;
+  }
+}
+
+.post-toc {
+  max-height: calc(100vh - var(--masthead-h) - 2rem);
+  overflow-y: auto;
+  padding: 1rem 0.5rem 0 0;
+  font-size: 0.88rem;
+
+  &__title {
+    margin: 0 0 0.6rem;
+    color: var(--muted);
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  &__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-left: 1px solid var(--border);
+  }
+
+  &__item {
+    margin: 0;
+
+    a {
+      display: block;
+      margin-left: -1px;
+      padding: 0.3rem 0 0.3rem 0.8rem;
+      border-left: 2px solid transparent;
+      color: var(--muted);
+      line-height: 1.4;
+      text-decoration: none;
+      transition: color 0.2s ease, border-color 0.2s ease;
+
+      &:hover {
+        color: var(--text);
+      }
+
+      &.is-active {
+        border-left-color: var(--text);
+        color: var(--text);
+        font-weight: bold;
+      }
+    }
+
+    &--l1 a { padding-left: 1.6rem; }
+    &--l2 a { padding-left: 2.4rem; }
+  }
+}
+
+/* anchor jumps land below the sticky masthead */
+.page__content {
+  h2, h3, h4 {
+    scroll-margin-top: calc(var(--masthead-h) + 1rem);
+  }
+}
+
+/* beat the theme's generic `.sidebar li` / `.sidebar h4` sizing */
+.sidebar .post-toc {
+  .post-toc__item {
+    font-family: inherit;
+    font-size: inherit;
+  }
+
+  .post-toc__title {
+    font-family: inherit;
+    font-size: 0.75rem;
   }
 }
