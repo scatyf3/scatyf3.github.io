@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 330" font-family="Helvetica,Arial,sans-serif" font-size="17">
+<rect width="980" height="330" fill="#ffffff"/>
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#52514e"/></marker></defs>
+<rect x="20" y="40" width="200" height="170" rx="6" fill="none" stroke="#8a8983" stroke-width="1.3" stroke-dasharray="6 4"/>
+<text x="34" y="68" fill="#0b0b0b" font-weight="600">A. Start</text>
+<rect x="40" y="132" width="40" height="40" fill="#ffffff" stroke="#0b0b0b" stroke-width="1.2"/>
+<text x="60.0" y="159.0" text-anchor="middle" fill="#0b0b0b" font-size="20">1</text>
+<rect x="80" y="132" width="40" height="40" fill="#ffffff" stroke="#0b0b0b" stroke-width="1.2"/>
+<text x="100.0" y="159.0" text-anchor="middle" fill="#0b0b0b" font-size="20">2</text>
+<rect x="120" y="132" width="40" height="40" fill="#ffffff" stroke="#0b0b0b" stroke-width="1.2"/>
+<text x="140.0" y="159.0" text-anchor="middle" fill="#0b0b0b" font-size="20">3</text>
+<rect x="160" y="132" width="40" height="40" fill="#ffffff" stroke="#0b0b0b" stroke-width="1.2"/>
+<text x="180.0" y="159.0" text-anchor="middle" fill="#0b0b0b" font-size="20">4</text>
+<rect x="280" y="40" width="400" height="170" rx="6" fill="none" stroke="#8a8983" stroke-width="1.3" stroke-dasharray="6 4"/>
+<text x="294" y="68" fill="#0b0b0b" font-weight="600">B. Budget reached (U = 2048)</text>
+<rect x="320" y="132" width="40" height="40" fill="#f6d98a" stroke="#0b0b0b" stroke-width="1.2"/>
+<text x="340.0" y="159.0" text-anchor="middle" fill="#0b0b0b" font-size="20">1</text>
+<rect x="360" y="132" width="40" height="40" fill="#e3edef" stroke="#0b0b0b" stroke-width="1.2" stroke-dasharray="4 3"/>
+<text x="380.0" y="159.0" text-anchor="middle" fill="#0b0b0b" font-size="20">2</text>
+<rect x="400" y="132" width="40" height="40" fill="#9fc0c6" stroke="#0b0b0b" stroke-width="1.2"/>
+<text x="420.0" y="159.0" text-anchor="middle" fill="#0b0b0b" font-size="20">3</text>
+<rect x="440" y="132" width="40" height="40" fill="#9fc0c6" stroke="#0b0b0b" stroke-width="1.2"/>
+<text x="460.0" y="159.0" text-anchor="middle" fill="#0b0b0b" font-size="20">4</text>
+<rect x="480" y="132" width="40" height="40" fill="#e3edef" stroke="#0b0b0b" stroke-width="1.2" stroke-dasharray="4 3"/>
+<text x="500.0" y="159.0" text-anchor="middle" fill="#0b0b0b" font-size="20">5</text>
+<rect x="520" y="132" width="40" height="40" fill="#e3edef" stroke="#0b0b0b" stroke-width="1.2" stroke-dasharray="4 3"/>
+<text x="540.0" y="159.0" text-anchor="middle" fill="#0b0b0b" font-size="20">6</text>
+<rect x="560" y="132" width="40" height="40" fill="#e3edef" stroke="#0b0b0b" stroke-width="1.2" stroke-dasharray="4 3"/>
+<text x="580.0" y="159.0" text-anchor="middle" fill="#0b0b0b" font-size="20">7</text>
+<rect x="600" y="132" width="40" height="40" fill="#f6d98a" stroke="#0b0b0b" stroke-width="1.2"/>
+<text x="620.0" y="159.0" text-anchor="middle" fill="#0b0b0b" font-size="20">8</text>
+<text x="340.0" y="120" text-anchor="middle" fill="#52514e" font-size="14">Sink (S)</text>
+<text x="480" y="120" text-anchor="middle" fill="#52514e" font-size="14">Prunable (U − W − S)</text>
+<text x="620.0" y="120" text-anchor="middle" fill="#52514e" font-size="14">Recent (W)</text>
+<rect x="750" y="40" width="210" height="170" rx="6" fill="none" stroke="#8a8983" stroke-width="1.3" stroke-dasharray="6 4"/>
+<text x="764" y="68" fill="#0b0b0b" font-weight="600">C. Pruned (L = 1024)</text>
+<rect x="775" y="132" width="40" height="40" fill="#f6d98a" stroke="#0b0b0b" stroke-width="1.2"/>
+<text x="795.0" y="159.0" text-anchor="middle" fill="#0b0b0b" font-size="20">1</text>
+<rect x="815" y="132" width="40" height="40" fill="#9fc0c6" stroke="#0b0b0b" stroke-width="1.2"/>
+<text x="835.0" y="159.0" text-anchor="middle" fill="#0b0b0b" font-size="20">3</text>
+<rect x="855" y="132" width="40" height="40" fill="#9fc0c6" stroke="#0b0b0b" stroke-width="1.2"/>
+<text x="875.0" y="159.0" text-anchor="middle" fill="#0b0b0b" font-size="20">4</text>
+<rect x="895" y="132" width="40" height="40" fill="#f6d98a" stroke="#0b0b0b" stroke-width="1.2"/>
+<text x="915.0" y="159.0" text-anchor="middle" fill="#0b0b0b" font-size="20">8</text>
+<line x1="224" y1="152.0" x2="274" y2="152.0" stroke="#52514e" stroke-width="1.8" marker-end="url(#ah)"/>
+<text x="249.0" y="142.0" text-anchor="middle" fill="#52514e" font-size="15">decode</text>
+<line x1="684" y1="152.0" x2="744" y2="152.0" stroke="#52514e" stroke-width="1.8" marker-end="url(#ah)"/>
+<text x="714.0" y="142.0" text-anchor="middle" fill="#52514e" font-size="15">prune</text>
+<path d="M855.0,212 V250 H480.0 V218" fill="none" stroke="#52514e" stroke-width="1.8" marker-end="url(#ah)"/>
+<text x="667.5" y="242" text-anchor="middle" fill="#52514e" font-size="15">KV cache keeps growing during decode</text>
+<rect x="240" y="296" width="18" height="18" fill="#f6d98a" stroke="#0b0b0b" stroke-width="1"/>
+<text x="266" y="311" fill="#0b0b0b" font-size="15">sink / recent (always kept)</text>
+<rect x="500" y="296" width="18" height="18" fill="#9fc0c6" stroke="#0b0b0b" stroke-width="1"/>
+<text x="526" y="311" fill="#0b0b0b" font-size="15">kept by score</text>
+<rect x="660" y="296" width="18" height="18" fill="#e3edef" stroke="#0b0b0b" stroke-width="1" stroke-dasharray="4 3"/>
+<text x="686" y="311" fill="#0b0b0b" font-size="15">evicted</text>
+</svg>

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 330" font-family="Helvetica,Arial,sans-serif" font-size="18">
+<rect width="900" height="330" fill="#ffffff"/>
+<rect x="78.0" y="16" width="56.5" height="248" fill="#9a9890" fill-opacity="0.16"/>
+<polygon points="134.5,229.6 792.0,29.3 792.0,192.8" fill="#2a78d6" fill-opacity="0.10"/>
+<line x1="78" x2="792" y1="264.0" y2="264.0" stroke="#e6e5e0"/>
+<text x="68" y="270.0" text-anchor="end" fill="#52514e">0</text>
+<line x1="78" x2="792" y1="181.3" y2="181.3" stroke="#e6e5e0"/>
+<text x="68" y="187.3" text-anchor="end" fill="#52514e">40</text>
+<line x1="78" x2="792" y1="98.7" y2="98.7" stroke="#e6e5e0"/>
+<text x="68" y="104.7" text-anchor="end" fill="#52514e">80</text>
+<line x1="78" x2="792" y1="16.0" y2="16.0" stroke="#e6e5e0"/>
+<text x="68" y="22.0" text-anchor="end" fill="#52514e">120</text>
+<text x="78.0" y="290" text-anchor="middle" fill="#52514e">0K</text>
+<text x="256.5" y="290" text-anchor="middle" fill="#52514e">32K</text>
+<text x="435.0" y="290" text-anchor="middle" fill="#52514e">64K</text>
+<text x="613.5" y="290" text-anchor="middle" fill="#52514e">96K</text>
+<text x="792.0" y="290" text-anchor="middle" fill="#52514e">128K</text>
+<line x1="78" x2="792" y1="264.0" y2="264.0" stroke="#a3a29c" stroke-width="1.5"/>
+<text x="435.0" y="322" text-anchor="middle" fill="#0b0b0b" font-size="19">Context length (tokens)</text>
+<text transform="translate(24,140.0) rotate(-90)" text-anchor="middle" fill="#0b0b0b" font-size="19">HBM traffic (GB)</text>
+<line x1="78.0" y1="232.7" x2="792.0" y2="192.8" stroke="#eb6834" stroke-width="3" stroke-linecap="round"/>
+<line x1="78.0" y1="246.8" x2="792.0" y2="29.3" stroke="#2a78d6" stroke-width="3" stroke-linecap="round"/>
+<circle cx="134.5" cy="229.6" r="5.5" fill="#0b0b0b" stroke="#fff" stroke-width="2"/>
+<text x="148.5" y="257.6" fill="#0b0b0b" font-style="italic">← Standard SD is here (&lt;10K)</text>
+<text x="535.6" y="163.3" text-anchor="middle" fill="#0b0b0b" font-style="italic" font-weight="600">Optimization opportunity</text>
+<text x="802.0" y="35.3" fill="#0b0b0b" font-weight="600">Draft ×γ</text>
+<text x="802.0" y="198.8" fill="#0b0b0b" font-weight="600">Target</text>
+<line x1="152" x2="178" y1="38" y2="38" stroke="#2a78d6" stroke-width="3"/>
+<text x="186" y="44" fill="#0b0b0b">Draft: Qwen3-0.6B, γ = 7</text>
+<line x1="152" x2="178" y1="64" y2="64" stroke="#eb6834" stroke-width="3"/>
+<text x="186" y="70" fill="#0b0b0b">Target: Qwen3-8B</text>
+</svg>
