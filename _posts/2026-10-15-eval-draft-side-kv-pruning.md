@@ -114,12 +114,14 @@ def add_kernel(a_ptr, b_ptr, out_ptr, len_ptr, BLOCK: tl.constexpr):
 搭建好kernel和sd的基础设施(draft - verify - draft状态回退)，我们获得了我们想优化的baseline。接下来的问题就是在哪里做pruning。production时用的flash infer/flash attention没有中间的attention score。基于这个限制，做上古风格的，per step pruning的attention score based method是不行的，但也不能完全query无关，因为也要eval一些attention score的baseline。
 
 基于这些限制，我们找到了R-KV，这是第一篇eval kv cache for long decoding的paper，提出了一些prune long decoding的方法，其流程翻译到我们的cuda是：
+
 0. 接收一个short prompt
 1. 正常deocde直到kv cache触及上限
 2. 触发一次pruning，评分并压缩kv到下限，然后继续decoding
 
 
 翻译到我们的cuda graph的runtime，这里的workflow是：
+
 0. 接收一个short prompt
 1. 正常使用flash attention style的kernel 高效decode，直到kv cache触及上限
 2. 触及上限后，触发一次pruning，在pruning event里可以获得各种score，包括attention和其他fancy的algorithm，这里可以用eager的，非高效的实现，因为这个event触发频率很低
@@ -127,6 +129,7 @@ def add_kernel(a_ptr, b_ptr, out_ptr, len_ptr, BLOCK: tl.constexpr):
 
 
 我们的runtime比起上文的full kv sd baseline，需要增加：
+
 1. 一个scoring接口，兼容各种评分方法
 2. 一个 select + compact 步骤，按分数选出保留的 KV，并在原地压缩到 cache 前部，这里可以有个kernel，但profile下来latency占比非常少，所以保持torch原生。
 
@@ -142,17 +145,141 @@ def add_kernel(a_ptr, b_ptr, out_ptr, len_ptr, BLOCK: tl.constexpr):
 
 #### SWA
 
-t
+HF 对 SWA 有三种 cache 实现：(1) `DynamicSlidingWindowLayer`，每步 cat 后截断到最近 window−1 个 token，shape 动态，且被逐出的 KV 无法回滚；(2) `StaticSlidingWindowLayer`，固定 window 大小的 buffer，写满后每步 `roll` 整体平移；(3) 保留全部 KV，用 sliding mask 屏蔽窗口外的位置。三者都不是 ring buffer。
+
+```python
+# ① DynamicSlidingWindowLayer
+full = torch.cat([self.keys, key_states], dim=-2)
+self.keys = full[:, :, -self.sliding_window + 1:, :]       # 只留最后 window-1 个, 窗口外的直接丢掉
+
+# ② StaticSlidingWindowLayer
+if not is_full:
+    pos = torch.arange(q_len) + self.cumulative_length
+    self.keys.index_copy_(2, pos, key_states)
+elif q_len == 1:   # 已满 + decode: 整体左移一格, 再写最后一个槽位
+    new_keys = self.keys.roll(-1, dims=-2)
+    new_keys[:, :, [-1]] = key_states
+    self.keys.copy_(new_keys) # copy_ 回原地址, 保证地址不变
+else: # 已满 + 多个 token: cat 后截断
+    full = torch.cat([self.keys[:, :, 1:], key_states], dim=-2)
+    self.keys.copy_(full[:, :, -window:])
+
+# ③ 全部 KV + sliding mask
+self.keys = torch.cat([self.keys, key_states], dim=-2)
+# 什么都不丢
+# 窗口由 mask 实现 (masking_utils.sliding_window_causal_mask_function):
+mask = (kv_idx <= q_idx) & (kv_idx > q_idx - sliding_window)
+```
+
+但这里有两个问题：
+
+1. **SD 兼容性**：除了 sliding mask 之外的方法都不兼容 SD，因为走出窗口的 KV 会被永久 evict。我们需要一个额外的 KV buffer，保留「已经离开 window，但可能因为 draft rollback 回到 window」的 KV。
+2. **Graph capture**：① 无法被 capture；② 可以，但每次 decode 都要移动整个窗口，感觉性能上不太好（不过这部分没测）。
+
+Given 这些问题，我们还是要自己造一个兼容 SD、可以被 capture 的 SWA buffer。先讲下已有框架的做法：
+
+1. **vLLM**：paged KV 天然适配真 SWA，直接 head + tail 加 mask，然后 evict head page、append tail page 即可。
+2. **SGLang** 的 radix cache 有两个选择：
+    1. 同 paged attention；
+    2. 一片连续的 SWA 区域，用 ring buffer，**DeepSeek-V4 和 DSpark draft 用的是这种**。
+
+很显然，出于 research demo 的动机，我们没必要搞 paged 这么复杂，直接在 single request 上用 ring buffer 比较好，或者说 page 就是更粗粒度的 ring buffer。
+
+**What is ring buffer?**
+
+1. 我们 preallocate size = W 的 KV cache；
+2. KV 写入的 address = pos % W。
+
+**Why ring buffer?** 位置编码只 care 相对距离，所以 KV pair 不严格按照顺序存放，不影响 output。
+
+数学推导：
+
+**记号**：query 的位置是 m，第 j 个 key/value 的逻辑位置是 $p_j$，存放在 slot $\sigma(j)$。ring buffer 就是 $\sigma(j) = p_j \bmod W$。
+
+**① 单个 query 的 attention 输出**
+
+$$o_m=\sum_{j\in\mathcal{K}}\frac{\exp(s_{mj})}{\sum_{l\in\mathcal{K}}\exp(s_{ml})}\,v_j, \qquad s_{mj}=\frac{\tilde q_m^\top \tilde k_j}{\sqrt d}+b_{mj}$$
+
+其中 $\mathcal{K}$ 是这个 query 能看到的 key 的集合，$$b_{mj}\in\{0,-\infty\}$$ 是 mask。
+
+**② 存放顺序不影响结果**
+
+对 slot 做任意重排 $\pi$，分子和分母都是对同一个集合 $\mathcal{K}$ 求和，加法满足交换律，所以
+
+$$o_m=\sum_{j}\alpha_{mj}v_j=\sum_{j}\alpha_{m\pi(j)}v_{\pi(j)}.$$
+
+前提是每个 $s_{mj}$ 只依赖 token 本身，也就是只依赖 $(q_m, k_j, p_j, m)$，**不依赖它存放在哪个 slot**。下面两步说明这个前提成立。
+
+**③ RoPE 的相位在写入时就固定了**
+
+RoPE 对 query 和 key 分别乘上各自位置的旋转矩阵：$\tilde q_m = R_m q_m$，$\tilde k_j = R_{p_j}k_j$。旋转矩阵是正交的，满足 $R_a^\top R_b = R_{b-a}$，所以
+
+$$\tilde q_m^\top \tilde k_j = q_m^\top R_m^\top R_{p_j} k_j = q_m^\top R_{p_j-m}\,k_j .$$
+
+这个分数只依赖相对距离 $p_j - m$。而且 $R_{p_j}$ 是在写进 cache **之前**、按真实位置 $p_j$ 乘上去的，后面不管这个 K 存到哪个 slot，它的相位都不会变。
+
+**④ mask 也必须按逻辑位置计算**
+
+sliding window 加 causal 的 mask 是
+
+$$b_{mj}=\begin{cases}0,& m-W< p_j\le m\\-\infty,&\text{otherwise}\end{cases}$$
+
+它只依赖 $p_j$ 和 m。如果 kernel 按 slot 编号去判断窗口（比如假设 slot 是连续递增的），ring 一回绕结果就错了。所以 kernel 要么拿到每个 slot 的 `slot_pos`，要么在回绕点把 buffer 切成两段连续区间分别计算，再用 LSE 合并。
+
+另外，当窗口已经写满、并且是 decode（Q=1）时，buffer 里的每个 slot 都满足 $$m-W<p_j\le m$$，mask 可以全部放开，这时什么都不用传。
+
+**⑤ 结论**
+
+只要 ③ 和 ④ 都成立，$s_{mj}$ 就只依赖 token 本身，不依赖 slot。再由 ②，按 $p_j \bmod W$ 存放和按顺序存放，得到的 $o_m$ 数学上完全相同。
+
+**Ring buffer + draft？** 在 ring buffer 之外加一个 size = γ 的 draft scratch，按 verify 通过的 commit token 推入 draft ring buffer 即可。
 
 Code：[lcrkv/kv_cache.py](https://github.com/scatyf3/lcrkv/blob/paper/lcrkv/kv_cache.py)（`RingScratchLayer`、`force_hybrid_ring_layers`）
 
-
-
 #### Gated Delta Net
+
+我们还 eval 了 Qwen3.5 上的效果：保持 GDN 层不被 prune，只对 full attention 层的 KV 做 pruning。
+
+**Kernel**：这里需要一个 GDN verify kernel。TL;DR：HF 提供的 GDN kernel 只有 prefill 和 decode 两种，prefill 默认从 0 开始，会静默忽略已有的 recurrent state，所以没有 SD verify 风格的 kernel。我们从 vLLM 借鉴了一个。
+
+**Runtime**：recurrent state 需要状态回滚管理，无法像 KV 一样简单地 crop 掉不要的部分。做法也很简单：
+
+1. 对 draft：维护 γ+1 个 recurrent state 的 slot，每步 decode 都保留，verify 之后回退到对应的 slot；
+2. 对 target 同理：我们的 verify kernel 能产出 per-token 的 recurrent state，也同样保留。
 
 Code：[lcrkv/spec_decode/gdn_spec.py](https://github.com/scatyf3/lcrkv/blob/paper/lcrkv/spec_decode/gdn_spec.py)、[lcrkv/kernels/gdn_spec_kernel.py](https://github.com/scatyf3/lcrkv/blob/paper/lcrkv/kernels/gdn_spec_kernel.py)
 
 #### Tree Speculative Decoding
+
+<!-- TODO: recap tree SD 的流程 -->
+
+**SDPA 的坑**
+
+接下来的目标是把 evaluation extend 到 tree，但在 tree kernel 这里又卡住了。我们用 torch SDPA 对比 chain 和 tree 时 SD 的 time breakdown，在 GSM8K 这种短上下文的数据上发现 tree 的 draft time 比 chain 莫名其妙多了 10ms。多出来的时间集中在 attention kernel 而非 e2e，所以 CUDA Graph 也无法优化这个问题。
+
+这里一度卡住很久。后来因为做其他的事情，要用 nsys profile memory traffic，才发现 SDPA + tree mask 时，SDPA 为了正确性会自动 fallback 到最 naive 的 GQA，直接 expand KV，导致 attention kernel 的 memory traffic 比 chain 多了一倍。
+
+![Hugging Face use_gqa_in_sdpa: a non-None attention mask falls back to repeat_kv](/images/blog/sdpa-mask-repeat-kv.png)
+*图 4：attention mask 非 None 时，直接 repeat KV。*
+
+**手写 tree kernel**
+
+SDPA 有一堆问题，所以还是仿照 chain 手写一个读 valid 长度的 kernel。然而 tree 比起 chain 又带来若干问题：
+
+1. **Dynamic Q**：tree 每层的宽度不一样，Q 的 `seq_len` 可能为 1、2、4、8，最大为 beam search 的 top-k；
+2. **Dynamic tree**：在 beam search 风格的 EAGLE-2 里，我们不预先定义 tree 的 shape，而是按接受置信度动态扩展 top-k 个 node。
+
+**Dynamic Q**：按 Q 分桶 capture CUDA Graph，capture {1, 2, K} 三个 graph，每个 graph 有各自**固定地址的输入 buffer**。三个 shape 分别对应：
+
+- Q=1：root；
+- Q=2：root 加上上一步接收但未 forward 的 bonus / repair token，一次 forward 补上它缺的 K/V；
+- Q=K：之后 S−1 层 beam forward 全用这个。
+
+**Dynamic tree**：KV preallocate 和 dynamic Q 的问题前面已经提过，剩下的是 mask。naive 的 dynamic tree 每步在 CPU 上随着 tree 的 shape 重新构建 mask（参考 EAGLE-2 的 codebase），导致每次 tree forward 都要 recapture。我们的做法是 preallocate 一个 static mask，每步只根据置信度用 torch kernel 修改 mask，同时给 mask 也配一个记录 valid position 的 tensor。
+
+<!-- TODO: 这里的写法 -->
+
+在 target side，我们还是用 SDPA 做 verify：首先对略大的模型，launch bound 没那么严重；其次这是一个 research demo，没必要追求极致性能，保持灵活更好。不过我们手动 patch 掉了那个低效的 GQA repeat KV，保证基本的效率。
 
 Code：[indep_draft/tree_sd/](https://github.com/scatyf3/IndepDraftEval/tree/main/indep_draft/tree_sd)、[indep_draft/sd/tree.py](https://github.com/scatyf3/IndepDraftEval/blob/main/indep_draft/sd/tree.py)、[indep_draft/kernels/triton_varlen_tree.py](https://github.com/scatyf3/IndepDraftEval/blob/main/indep_draft/kernels/triton_varlen_tree.py)
 
@@ -292,15 +419,141 @@ So far we have only built the Qwen3 pipeline. How should our method plug into ne
 
 #### SWA
 
+Hugging Face has three cache implementations for SWA: (1) `DynamicSlidingWindowLayer`, which concatenates every step and then truncates to the most recent window−1 tokens; its shape is dynamic and evicted KV cannot be rolled back. (2) `StaticSlidingWindowLayer`, a fixed window-sized buffer that, once full, shifts everything with `roll` every step. (3) Keep all KV and hide positions outside the window with a sliding mask. None of the three is a ring buffer.
 
+```python
+# ① DynamicSlidingWindowLayer
+full = torch.cat([self.keys, key_states], dim=-2)
+self.keys = full[:, :, -self.sliding_window + 1:, :]       # keep only the last window-1; anything outside the window is dropped
+
+# ② StaticSlidingWindowLayer
+if not is_full:
+    pos = torch.arange(q_len) + self.cumulative_length
+    self.keys.index_copy_(2, pos, key_states)
+elif q_len == 1:   # full + decode: shift everything left by one, then write the last slot
+    new_keys = self.keys.roll(-1, dims=-2)
+    new_keys[:, :, [-1]] = key_states
+    self.keys.copy_(new_keys) # copy_ back in place so the address stays fixed
+else: # full + multiple tokens: concatenate, then truncate
+    full = torch.cat([self.keys[:, :, 1:], key_states], dim=-2)
+    self.keys.copy_(full[:, :, -window:])
+
+# ③ all KV + sliding mask
+self.keys = torch.cat([self.keys, key_states], dim=-2)
+# nothing is dropped
+# the window comes from the mask (masking_utils.sliding_window_causal_mask_function):
+mask = (kv_idx <= q_idx) & (kv_idx > q_idx - sliding_window)
+```
+
+This leaves two problems:
+
+1. **SD compatibility**: every option except the sliding mask is incompatible with SD, because KV that leaves the window is evicted for good. We need an extra KV buffer to hold KV that has left the window but may come back into it after a draft rollback.
+2. **Graph capture**: ① cannot be captured. ② can, but it shifts the whole window on every decode step, which seems bad for performance (I didn't measure this, though).
+
+Given these problems, we still had to build our own SWA buffer that works with SD and can be captured. First, how existing frameworks do it:
+
+1. **vLLM**: paged KV fits true SWA naturally. Mask the head and tail, then evict the head page and append a tail page.
+2. **SGLang**'s radix cache has two options:
+    1. The same as paged attention;
+    2. One contiguous SWA region managed as a ring buffer. **DeepSeek-V4 and the DSpark draft use this.**
+
+Since this is a research demo, there's no need for anything as complex as paging. A ring buffer on a single request is the better fit; a page is really just a coarser-grained ring buffer.
+
+**What is a ring buffer?**
+
+1. Preallocate a KV cache of size W;
+2. Write KV at address = pos % W.
+
+**Why a ring buffer?** Positional encoding only cares about relative distance, so storing KV pairs out of order does not change the output.
+
+The math:
+
+**Notation**: the query is at position m; the j-th key/value has logical position $p_j$ and is stored in slot $\sigma(j)$. A ring buffer is simply $\sigma(j) = p_j \bmod W$.
+
+**① Attention output for one query**
+
+$$o_m=\sum_{j\in\mathcal{K}}\frac{\exp(s_{mj})}{\sum_{l\in\mathcal{K}}\exp(s_{ml})}\,v_j, \qquad s_{mj}=\frac{\tilde q_m^\top \tilde k_j}{\sqrt d}+b_{mj}$$
+
+where $\mathcal{K}$ is the set of keys this query can see and $$b_{mj}\in\{0,-\infty\}$$ is the mask.
+
+**② Storage order does not affect the result**
+
+Apply any permutation $\pi$ to the slots. Numerator and denominator both sum over the same set $\mathcal{K}$, and addition is commutative, so
+
+$$o_m=\sum_{j}\alpha_{mj}v_j=\sum_{j}\alpha_{m\pi(j)}v_{\pi(j)}.$$
+
+This assumes each $s_{mj}$ depends only on the token itself, i.e. only on $(q_m, k_j, p_j, m)$, and **not on which slot it is stored in**. The next two steps show this holds.
+
+**③ RoPE's phase is fixed at write time**
+
+RoPE multiplies the query and key by the rotation matrix for their own positions: $\tilde q_m = R_m q_m$, $\tilde k_j = R_{p_j}k_j$. Rotation matrices are orthogonal and satisfy $R_a^\top R_b = R_{b-a}$, so
+
+$$\tilde q_m^\top \tilde k_j = q_m^\top R_m^\top R_{p_j} k_j = q_m^\top R_{p_j-m}\,k_j .$$
+
+The score depends only on the relative distance $p_j - m$. And $R_{p_j}$ is applied with the true position $p_j$ **before** the key is written to the cache, so its phase doesn't change no matter which slot the K ends up in.
+
+**④ The mask must also use logical positions**
+
+The sliding-window plus causal mask is
+
+$$b_{mj}=\begin{cases}0,& m-W< p_j\le m\\-\infty,&\text{otherwise}\end{cases}$$
+
+It depends only on $p_j$ and m. If the kernel decides the window from slot indices (for example, assuming slots increase contiguously), the result is wrong as soon as the ring wraps around. So the kernel must either get each slot's `slot_pos`, or split the buffer at the wrap point into two contiguous ranges, compute each, and merge them with LSE.
+
+Also, once the window is full and we are decoding (Q=1), every slot in the buffer satisfies $$m-W<p_j\le m$$, so the mask can be dropped entirely and nothing needs to be passed in.
+
+**⑤ Conclusion**
+
+As long as ③ and ④ hold, $s_{mj}$ depends only on the token, not the slot. Then by ②, storing at $p_j \bmod W$ and storing in order give mathematically identical $o_m$.
+
+**Ring buffer + draft?** Add a draft scratch of size γ next to the ring buffer, and push the tokens committed by verify into the draft ring buffer.
 
 Code: [lcrkv/kv_cache.py](https://github.com/scatyf3/lcrkv/blob/paper/lcrkv/kv_cache.py) (`RingScratchLayer`, `force_hybrid_ring_layers`)
 
 #### Gated Delta Net
 
+We also evaluated on Qwen3.5: GDN layers are left unpruned, and only the full-attention layers' KV is pruned.
+
+**Kernel**: this needs a GDN verify kernel. TL;DR: the GDN kernels in Hugging Face only cover prefill and decode, and prefill always starts from 0, silently ignoring any existing recurrent state, so there is no SD-verify-style kernel. We borrowed one from vLLM.
+
+**Runtime**: the recurrent state needs rollback management; you can't just crop off the unwanted part as with KV. The fix is simple:
+
+1. Draft: keep γ+1 recurrent-state slots, save one at every decode step, and roll back to the matching slot after verify;
+2. Target: same idea. Our verify kernel produces a per-token recurrent state, which we keep the same way.
+
 Code: [lcrkv/spec_decode/gdn_spec.py](https://github.com/scatyf3/lcrkv/blob/paper/lcrkv/spec_decode/gdn_spec.py), [lcrkv/kernels/gdn_spec_kernel.py](https://github.com/scatyf3/lcrkv/blob/paper/lcrkv/kernels/gdn_spec_kernel.py)
 
 #### Tree Speculative Decoding
+
+<!-- TODO: recap the tree SD procedure -->
+
+**The SDPA trap**
+
+The next goal was to extend the evaluation to trees, but we got stuck again on the tree kernel. Comparing the SD time breakdown for chain vs. tree with torch SDPA, we found on short-context data such as GSM8K that the tree's draft time was inexplicably 10 ms longer than the chain's. The extra time was in the attention kernel rather than end to end, so CUDA Graph couldn't help.
+
+This blocked us for a long time. Later, while profiling memory traffic with nsys for something else, I found that with SDPA + a tree mask, SDPA falls back to the most naive GQA path for correctness and expands the KV directly, so the attention kernel's memory traffic is double that of the chain case.
+
+![Hugging Face use_gqa_in_sdpa: a non-None attention mask falls back to repeat_kv](/images/blog/sdpa-mask-repeat-kv.png)
+*Figure 4: when the attention mask is not None, KV is simply repeated.*
+
+**A hand-written tree kernel**
+
+SDPA has a pile of problems, so as with the chain, we hand-wrote a kernel that reads the valid length. But trees bring several new problems compared with chains:
+
+1. **Dynamic Q**: each tree layer has a different width, so Q's `seq_len` can be 1, 2, 4 or 8, up to the beam search top-k;
+2. **Dynamic tree**: in beam-search-style EAGLE-2, the tree's shape is not predefined; it expands the top-k nodes by acceptance confidence on the fly.
+
+**Dynamic Q**: capture CUDA Graphs bucketed by Q: three graphs for {1, 2, K}, each with its own **fixed-address input buffer**. The three shapes are for:
+
+- Q=1: the root;
+- Q=2: the root plus the bonus / repair token accepted in the previous step but not yet forwarded, filling in its missing K/V in one forward;
+- Q=K: all of the following S−1 beam forward layers.
+
+**Dynamic tree**: KV preallocation and dynamic Q are covered above; what remains is the mask. A naive dynamic tree rebuilds the mask on the CPU each step as the tree's shape changes (see the EAGLE-2 codebase), which forces a recapture on every tree forward. Instead, we preallocate a static mask, update it each step with a torch kernel based only on the confidences, and give the mask its own valid-position tensor.
+
+<!-- TODO: how this is written -->
+
+On the target side we still use SDPA for verify. First, launch bound is less severe for the larger model; second, this is a research demo, so there's no need for peak performance, and staying flexible is better. We did manually patch out the inefficient GQA repeat KV to keep basic efficiency.
 
 Code: [indep_draft/tree_sd/](https://github.com/scatyf3/IndepDraftEval/tree/main/indep_draft/tree_sd), [indep_draft/sd/tree.py](https://github.com/scatyf3/IndepDraftEval/blob/main/indep_draft/sd/tree.py), [indep_draft/kernels/triton_varlen_tree.py](https://github.com/scatyf3/IndepDraftEval/blob/main/indep_draft/kernels/triton_varlen_tree.py)
 
